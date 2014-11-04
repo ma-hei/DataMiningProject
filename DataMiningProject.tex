@@ -1,0 +1,51 @@
+\documentclass[a4paper,ngerman]{scrartcl}
+
+\usepackage[T1]{fontenc}
+\usepackage[applemac]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[normalem]{ulem} 
+\begin{document}
+\title{MapReduce Programming Project for CMPT 741}
+\subtitle{Report}
+\maketitle
+
+\section{Introduction}
+\section{Problem description}
+\section{Description of Test Data}
+\section{High Level approach}
+\section{Pipeline Workflow}
+This section gives details about the pipeline implementation. The description below assumes that the user is working with the SFU cluster and has all implemented shell-scripts and .jar files in his home directory on the given machine hadoop.rcg.sfu.ca.
+\subsection{Data Preprocessing and Threshold Configuration}
+As a first step of the pipeline the user makes a decision on $p$ for the fraction size $\frac{1}{p}$ of each of the data chunks that the complete list of transactions is split into. In the implemented pipeline we restricted the fraction size $\frac{1}{p}$ of each chunk to be equal. This means that the test data of 100k transactions can be split for example into 100 files (with 1000 transactions each, $\frac{1}{p}=\frac{1}{100}$) or 500 files (with 250 transactions each, $\frac{1}{p}=\frac{1}{500}$) but not into 150 files (because $\frac{100000}{150} \notin \mathbb{N}$ and we wouldn't get the same $\frac{1}{p}$ for each chunk.) 
+Also the user makes a decision on the support threshold $s$ which defines in how many baskets of the whole transaction list an itemset has to occur at least in order to be called a frequent itemest. Together with the chunk size $\frac{1}{p}$ defined above this determines the lower threshold $\frac{1}{p}s$ that is applied on the data chunks in the first Map-function. In order to perform the file split and set the configuration parameters $s$ and $\frac{1}{p}s$ for the Mapper- and Reducer Tasks the user runs the script \textit{preprocessing\_and\_configuration.sh} with the parameters $p$ and $s$. The file with the complete list of transactions is now split into data chunks of the desired size and copied to the hadoop file system. Also two configuration files \textit{threshold\_chunk} and \textit{threshold\_whole} are set on the hadoop machine. These configuration files are needed for the actual mappers and reducers.
+
+\textbf{Note} that we chose a support threshold $s$ for the complete list of transactions and a fraction size $p$ which determines the lower threshold $\frac{1}{p}s$ for the chunks. We can reuse the same chunks for a different support threshold $s$ by setting the configuration files on the hadoop machine. This can be done by using the script \textit{set\_threshold.sh} with parametes $p$ and $s$.
+\subsection{The first MapReduce run}
+In the above step the complete list of transactions was split into a smaller number of data chunks and the threshold for the data chunks was set appropriately to the support threshold of the whole file. The data chunks were copied to the hadoop file system and the threshold value for the chunks was written to a configuration file on the hadoop machine where each mapper can read it. The user can now call the first pass of Maps and Reduces which produce the set of candidate itemsets. To run the first pass of MapReduce the user executes the script \textit{run\_first\_mapreduce.sh} with the parameter $p$. The script derives the input directories name for the hadoop job (which contains the data chunks) from the parameter $p$ automatically. This is the directory which was created on the hadoop machine in the step above. Hadoop executes a mapper for each data chunk which produce a key-value pair $(F,1)$ for each itemset that occurs more than $\frac{1}{p}s$ times in the chunk. The Reducer tasks of this first MapReduce run just merge the key-value pairs from all mappers and thus produce the set of candidate itemsets for the second MapReduce run. As a result of the first MapReduce run we get the candidate file \textit{part-r-00000} in the directory \textit{candidates\_p\_\{\$p\}/} on the hadoop machine.
+
+\subsection{The second MapReduce run}
+In the step above we created the candidate itemsets for the second run of MapReduce. In the second run each mapper first reads the file of candidate itemsets that was created in the step above. Each mapper then gets a chunk of the data and counts the number of occurences of each candidate itemset. Finally each mapper produces a key-value pair $(F,Count)$ for each candidate where $Count$ is the number of occurences of candidate $F$. Afterwards the reducers sum up the counts for each candidate and produce a key-value pair $(F,Count)$ if $Count>s$. As a result of the second MapReduce run we get a file \textit{part-r-00000} in the directory \textit{frequent\_itemsets\_p\_\{\$p\}/} on the hadoop machine which contains all frequent itemsets. 
+
+\textbf{Note} that each reducer needs to know the support threshold $s$ in order to decide weather or not to produce a key-value pair. This threshold was set in the first step and was written to the config file \textit{threshold\_whole} on the hadoop machine. Each reducer in the second MapReduce run reads this configuration file to obtain the support threshold $s$.
+
+\section{Code Description}
+
+This sections describes the key components of our MapReduce implementation in hadoop. Basically we started from the given example code \textit{WordCount.java} and modified it to produce candidate itemsets in the first run and frequent itemsets in the second run. 
+On the configurational side of the hadoop framework the three main challenges were:
+\begin{itemize}
+\item to pass one data chunk as a whole file (and not line by line) to each mapper in the first and second run. This topic is covered in 6.1.
+\item to pass the threshold parameters to the mappers in the first run and the reducers in the second run. This topic is covered in 6.2.
+\item to pass the candidate itemsets to the mappers in the second run. This topic is covered in 6.3.
+\end{itemize}
+On the functional side the biggest challenge was to implement the Apriori-Algorithm to find candidate itemsets in the first run of mappers. 
+\subsection{Passing the complete file content of a data chunk to mappers.}
+In order to find candidate itemsets we want to process the complete content of one data chunk in each mapper in the first run. We also want to work with the complete content of a data chunk in each second-run-mapper when we count the number of candidate occurences. In order to pass data chunks to the mappers as complete files we implemented an own class \textit{WholeFileInputFormat} which is set as the hadoop jobs \textit{InputFormat}. The class \textit{WholeFileInputFormat} returns false in the method \textit{isSplitable} which assures that the data chunks are not split and handed to different mappers. Also we created an own class \textit{WholeFileRecordReader} of which an instance is returned by the method \textit{createRecordReader} in the class \textit{WholeFileInputFormat}. In the \textit{WholeFileRecordReader} we overwrote the method \textit{nextKeyValue} which is responsible for reading  complete data chunk files which finally get passed to the mappers. This step assures that the complete content of a data chunk is handed to a mapper and that it is not processed line by line.
+\subsection{Passing threshold parameters to the hadoop mappers and reducers.}
+At two points we need to pass the threshold parameters $\frac{1}{p}s$ and $s$ to the MapReduce functions: The first run of mapper functions need the lower threshold $\frac{1}{p}s$ to find candidate itemsets and the second run of reducer functions need the support threshold $s$ to decide wether a pair $(F,Count)$ is produced as a frequent itemset or not. Because of the distributed architecture of the hadoop framework we can not simply pass these parameters on the command line and set them as static variables inside the mapper class. In our solution we overwrote the inherited \textit{setup} method of the \textit{Mapper} and \textit{Reducer} classes. This method is called initially when a new instance of a \textit{Mapper} or \textit{Reducer} classes is created. In the \textit{setup} method for the mapper in the first  run we read the configuration file \textit{config/threshold\_chunk.conf} which needs to be set by the user beforehand. This configuration file contains just one line of the format \textit{threshold:t} where $t$ is set as the lower threshold for the mapper function. We applied the same method for the reducers in the second run. This time the \textit{setup} method reads the configuration file \textit{config/threshold\_whole\_file.conf} which also needs to be set beforehand and contains just one line of the format \textit{threshold:t}. The paramter $t$ is set as the reducers support threshold on which it decides wether or not to produce a $(F,Count)$ pair as a frequent itemset.
+\subsection{Passing the candidate itemsets to the mappers in the second run.}
+ 
+\section{Evaluation}
+\section{Discussion}
+\end{document}
