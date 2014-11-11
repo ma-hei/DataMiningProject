@@ -1,0 +1,112 @@
+All in all the frequent itemsets are found in two runs of MapReduce. This section gives pseudocode-level details of the algorithms that run in the first mappers and first reducers as well as the second mappers and second reducers. Before going over the two passes section \ref{data structures} gives details about two important data structures that are used in the passes.
+\subsection{Data Structures}\label{data structures}
+In the first pass each mapper in the Map Task is running the A-Priori Algorithm over the input data chunk (see section \ref{first map task}). The A-Priori Algorithm first finds all frequent single items, then all frequent itemsets of size two and so on (see section \ref{A-Priori}). The data structure that is used in the A-Priori Algorithm is the following:
+\begin{itemize}
+\item For simplicity and in agreement with the given test data (see section \ref{test data}) we assume that items are represented by integers. A set of items is then stored as \textit{Set<Integer>}. Frequent itemsets can have size $1,2,\hdots$. For each size we get one list of itemsets (\textit{List<Set<Integer$>>$}). The frequent itemsets data structure contains one list of frequent itemsets for each size of which frequent itemsets were found. Thus we get the data structure \textit{List<List<Set<Integer$>>>$}.
+\end{itemize}
+
+The second run of mappers count for each candidate itemset how many of the baskets of a data chunk contain the candidate (see section \ref{second map task}). Therefore they need to store a count for each candidate. The data structure that is used to store the counts is the following:
+\begin{itemize}
+\item Each itemset is an instance of \textit{Set<Integer>}. Therefore we need a hashmap that maps from \textit{Set<Integer>} to counts (Integer). This gives us the data structure HashMap<Set<Integer>, Integer>.
+\end{itemize}
+\subsection{First Map Task}\label{first map task}
+In the first run of mapper functions each mapper is processing one of the data chunks. Each mappers task is to find all itemsets that occur at least in $ps$ of the baskets in the processed chunk. To get these itemsets, which are frequent for a data chunk the A-Priori Algorithm was utilized which is described in more detail in 1.1.1.
+The pseudocode given in Algorithm 1 describes the function of the first set of mappers.
+\begin{algorithm}
+  \caption{First Map}\label{First Map}
+  \begin{algorithmic}[1]
+    \Function{mapper}{String data\_chunk, int chunk\_threshold}
+      \State {List<String> basket\_list = SPLIT\_INTO\_BASKETS(data\_chunk)}
+      \State {List<List<Set<Integer$>>>$ frequent\_itemsets = RUN\_APRIORI(data\_chunk, chunk\_threshold)}
+     
+     \ForEach{Set<Integer> itemset $\in$ frequent\_itemsets}
+            \State produce(itemset, 1)
+       \EndFor
+
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+\subsubsection{Finding frequent itemsets in first phase - the A-Priori Algorithm}\label{A-Priori}
+Each mapper in the first run of mappers finds all itemsets that are frequent (subject to the lower threshold $ps$) in the data chunk that is given as input by using the A-Priori Algorithm. For this step an own implementation of the A-Priori Algorithm was utilized. From a top level perspective the key function of the A-Priori algorithm is listed in Algorithm 2.
+\begin{algorithm}
+  \caption{A-Priori}\label{Apriori}
+  \begin{algorithmic}[1]
+    \Function{run\_apriori}{List<String$>>$ baskets, int chunk\_threshold}
+      \State {all\_frequent\_itemsets = new List<List<Set<Integer$>>>$}
+      \State {frequent\_itemsets = GET\_FREQUENT\_SINGLE\_ITEMS(baskets, chunk\_threshold)}
+      \If {frequent\_itemsets not empty}
+      	\State {all\_frequent\_itemsets.ADD(frequent\_itemsets)}
+      	\State {candidates = COMPUTE\_CANDIDATES\_FOR\_NEXT\_PASS(frequent\_itemsets)}
+      \EndIf
+      \While {candidates not empty AND frequent\_itemsets not empty}
+      \State {frequent\_itemsets = GET\_FREQUENT\_ITEMSETS(baskets, candidates, chunk\_threshold)}
+      \If {frequent\_itemsets not empty}
+      	\State {all\_frequent\_itemsets.ADD(frequent\_itemsets)}
+      	\State {candidates = COMPUTE\_CANDIDATES\_FOR\_NEXT\_PASS(frequent\_itemsets)}
+      \EndIf
+      \EndWhile
+      \State \Return {all\_frequent\_itemsets}
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+\subsection{First Reduce Task}
+The Reducer Task in the first pass merges together all the itemsets that were detected in the separate data chunks by the first Map Task. Each reducer gets a key-value pair where the key is an itemset that was detected as frequent in at least one of the data chunks. The reducers ignore the value part and simply produce the itemset as $<itemset, 1>$. The combined output of all reducers form the list of candidate itemsets for the second pass. The pseudocode given in Algorithm \ref{first reduce} describes the reducers which run in the first Reduce Task:
+\begin{algorithm}
+  \caption{First Reduce Task}\label{first reduce}
+  \begin{algorithmic}[1]
+    \Function{reducer}{Set<Integer> itemset, Value value}
+      \State produce(itemset, 1)
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+\subsection{Second Map Task}\label{second map task}
+
+In the second run of mapper functions each mapper is again processing one of the data chunks. Before processing the data chunk the mapper reads in the list of candidate itemsets that was produced in the first MapReduce pass. The task of each mapper is to produce a key-value pair of the form $<candidate, count>$ for each $candidate$ where $count$ is the number of baskets in the data chunk that contains all items in the itemset $candidate$. Algorithm \ref{second map} gives pseudocode for the mappers that run in the second Map Task.
+\begin{algorithm}
+  \caption{Second Map Task}\label{second map}
+  \begin{algorithmic}[1]
+    \Function{mapper}{String data\_chunk}
+      \State {List<Set<Integer$>>$ candidate\_itemsets = READ\_CANDIDATE\_LIST()}
+      \State {List<String> basket\_list = SPLIT\_INTO\_BASKETS(data\_chunk)}
+      \State {HashMap<Set<Integer>, Integer> candidate\_counts = new HashMap<Set<Integer>, Integer>}
+      \ForEach{String basket $\in$ basket\_list}
+            \State {Set<Integer> temp\_basket = CONVERT\_TO\_SET(basket)}
+            \ForEach{Set<Integer$>>$ candidate $\in$ candidate\_itemsets}
+            \State {Boolean basket\_contains\_candidate = true}
+            \ForEach{Integer item $\in$ candidate}
+            	\If{NOT temp\_basket.CONTAINS(item)}
+            		\State basket\_contains\_candidate = false
+            		\State break
+            	\EndIf
+            \EndFor
+            \If{basket\_contains\_candidate = true}
+            	\State{candidate\_counts(candidate)=candidate\_counts(candidate)+1}
+            \EndIf
+            \EndFor
+       \EndFor
+       
+        \ForEach{candidate $\in$ candidate\_itemsets}
+        		\State{produce(candidate, candidate\_counts(candidate))}
+        \EndFor
+      
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Second Reduce Task}
+Each reducer in the second run of reducers gets a key-value pair where the key is a candidate itemset and the value is a list of counts. The count list contains one value for each data chunk which is the number of baskets in that chunk that contains all the items of the candidate. The reducer sums up all the counts and gets the number of total baskets that contain the candidate. If this number is at least $s$ then the candidate is a frequent itemset for the whole file and the reducer produces it. Algorithm \ref{second reduce} describes the function of the reducers which run in the second Reduce Task.
+
+\begin{algorithm}
+  \caption{Second Reduce Task}\label{second reduce}
+  \begin{algorithmic}[1]
+    \Function{reduce}{Set<Integer> itemset, List<Integer> count\_list, Integer support\_threshold}
+      	\State {Integer total\_count = 0}
+       	\ForEach{Integer count $\in$ count\_list}
+       		\State {total\_count = total\_count+count}
+       	\EndFor
+       	\If {total\_count$\geq$ support\_threshold}
+       		\State{produce(itemset, total\_count)}
+       	\EndIf
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}

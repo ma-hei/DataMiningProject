@@ -1,0 +1,32 @@
+\documentclass[a4paper,ngerman]{scrartcl}
+
+\usepackage[T1]{fontenc}
+\usepackage[applemac]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\usepackage{algorithm}% http://ctan.org/pkg/algorithms
+\usepackage{algpseudocode}% http://ctan.org/pkg/algorithmicx
+\usepackage{caption}
+\makeatletter
+\renewcommand{\ALG@beginalgorithmic}{\small}
+\algrenewcommand{\algorithmicrequire}{\textbf{Input:}}
+\algrenewcommand{\algorithmicensure}{\textbf{Output:}}
+\algrenewcommand{\algorithmicforall}{\textbf{for each}}
+% \algrenewcommand instead of \renewcommand according to manual
+\newcommand{\To}{\textbf{to}}
+% Not stated in manual, \Return and \algorithmicreturn are defined, but no \algorithmicstate, why?
+\newcommand{\Dosth}{\textbf{Do Something }}
+% Need space here, why?
+\def\ForEach{\ForAll}
+\makeatother
+\begin{document}
+\section{Introduction}
+\section{High Level Approach}
+\subsection{The MapReduce-MapReduce sequence}
+\input{pseudocode}
+\section{Test Data}\label{test data}
+\section{Implementation Details}
+\input{implementation_details}
+\end{document}

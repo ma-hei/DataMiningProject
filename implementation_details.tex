@@ -1,0 +1,13 @@
+For the implementation of the two pass MapReduce pipeline the Hadoop Framework was used. Hadoop is an open-source implementation of a distributed file system (HDFS) with a high level API that allows to easily run the Mapper and Reducer Tasks in parallel on distributed nodes. All the code for the Mapper and Reducer Tasks as well as preprocessing and postprocessing steps was written in Java. In the scope of this project a pipeline was created which in sequential order consists of the following modules:
+\begin{enumerate}
+\item preprocessing of the input file to create data chunks 
+\item setting of the threshold parameters so that they are accessible by the Mapper and Reducer classes of the Hadoop API
+\item running the first pass of MapReduce to create itemset candidates
+\item running the second pass of MapReduce to find frequent itemsets
+\item postprocessing of the output of the second MapReduce pass
+\end{enumerate}
+For this section it is assumed that a user has access to a Hadoop setup such as the given cluster of this project. For each module this section gives insight into how it is processing the given input. Section \ref{preprocessing} describes the splitting of the test data into chunks and the parameter setting so that they are accessible by the Hadoop Modules. Section \ref{first pass details} and \ref{second pass details} give details about the first and second run of MapReduce. These two sections give Hadoop specific implementation details. \ref{postprocessing} describes how the output of the second MapReduce run is postprocessed.
+\subsection{Data Preprocessing and Parameter Setting}\label{preprocessing}
+\subsection{The First MapReduce Pass}\label{first pass details}
+\subsection{The Second MapReduce Pass}\label{second pass details}
+\subsection{Output Postprocessing}\label{postprocessing}
