@@ -5,7 +5,27 @@
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
-
+\usepackage{listings}
+\usepackage{color}
+\usepackage{adjustbox}
+\newlength\someheight
+\setlength\someheight{3cm}
+\definecolor{javared}{rgb}{0.6,0,0} % for strings
+\definecolor{javagreen}{rgb}{0.25,0.5,0.35} % comments
+\definecolor{javapurple}{rgb}{0.5,0,0.35} % keywords
+\definecolor{javadocblue}{rgb}{0.25,0.35,0.75} % javadoc
+ 
+\lstset{language=Java,
+belowcaptionskip=1\baselineskip,
+basicstyle=\fontsize{11}{7}\ttfamily,
+keywordstyle=\color{javapurple}\bfseries,
+stringstyle=\color{javared},
+commentstyle=\color{javagreen},
+morecomment=[s][\color{javadocblue}]{/**}{*/},
+numbersep=10pt,
+tabsize=4,
+showspaces=false,
+showstringspaces=false}
 \usepackage{algorithm}% http://ctan.org/pkg/algorithms
 \usepackage{algpseudocode}% http://ctan.org/pkg/algorithmicx
 \usepackage{caption}
@@ -29,4 +49,9 @@
 \section{Test Data}\label{test data}
 \section{Implementation Details}
 \input{implementation_details}
+\section{Evaluation}
+The pipeline was evaluated on the given test data file example.dat for x different choices for the number of data chunks and y different support thresholds. The total running time of each choice of parameters is listed in table t. Interestingly for the parameter choices x,y,z the mapper functions in the first pass failed due to timeouts.
+\section{Appendix}
+\subsection{Shell Scripts}\label{scripts}
+\subsection{Java Modules}\label{java}
 \end{document}

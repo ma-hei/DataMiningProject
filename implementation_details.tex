@@ -1,4 +1,4 @@
-For the implementation of the two pass MapReduce pipeline the Hadoop Framework was used. Hadoop is an open-source implementation of a distributed file system (HDFS) with a high level API that allows to easily run the Mapper and Reducer Tasks in parallel on distributed nodes. All the code for the Mapper and Reducer Tasks as well as preprocessing and postprocessing steps was written in Java. In the scope of this project a pipeline was created which in sequential order consists of the following modules:
+For the implementation of the two pass MapReduce pipeline the Hadoop Framework was used. Hadoop is an open-source implementation of a distributed file system (HDFS) with a high level API that allows to easily run the Mapper and Reducer Tasks each in parallel on distributed nodes. All the code for the Mapper and Reducer Tasks as well as preprocessing and postprocessing steps was written in Java. In the scope of this project a pipeline was created which in sequential order consists of the following modules:
 \begin{enumerate}
 \item preprocessing of the input file to create data chunks 
 \item setting of the threshold parameters so that they are accessible by the Mapper and Reducer classes of the Hadoop API
@@ -6,8 +6,158 @@ For the implementation of the two pass MapReduce pipeline the Hadoop Framework w
 \item running the second pass of MapReduce to find frequent itemsets
 \item postprocessing of the output of the second MapReduce pass
 \end{enumerate}
-For this section it is assumed that a user has access to a Hadoop setup such as the given cluster of this project. For each module this section gives insight into how it is processing the given input. Section \ref{preprocessing} describes the splitting of the test data into chunks and the parameter setting so that they are accessible by the Hadoop Modules. Section \ref{first pass details} and \ref{second pass details} give details about the first and second run of MapReduce. These two sections give Hadoop specific implementation details. \ref{postprocessing} describes how the output of the second MapReduce run is postprocessed.
+A user executes this pipeline by calling the implemented script
+\begin{center}
+\textit{find\_frequent\_itemsets.sh data.dat k s}
+\end{center}
+where \textit{data.dat} is a transaction file in the format described in section \ref{test data}, \textit{k} is the desired number of data chunks that \textit{data.dat} is split into and \textit{s} is the support threshold in percentage (see Appendix \ref{scripts}).
+For each module this section gives insight into how it is processing the given input. Section \ref{preprocessing} describes the splitting of the test data into chunks and the parameter setting so that they are accessible by the Hadoop Modules. Section \ref{first pass details} and \ref{second pass details} give details about the first and second run of MapReduce. These two sections give Hadoop specific implementation details. \ref{postprocessing} describes how the output of the second MapReduce run is postprocessed.
+
 \subsection{Data Preprocessing and Parameter Setting}\label{preprocessing}
+As a first step in the pipeline the complete list of transactions is split into $k$ chunks. In order to find out how many transactions of the complete list go into each chunk it is required to know how many transactions $l$ the complete list contains. If $l$ and $k$ are known it is possible to go over the complete list and write $\frac{l}{k}$ transactions into each chunk. To find $l$ we go over the complete list once, then we go over the list again and write $\frac{l}{k}$ transactions into each file. The main loop to get the chunks is listed in Listing 1. The complete code is listed in Appendix \ref{java}.
+
+\begin{lstlisting}[caption={writing the data chunks},captionpos=b,label={lst:create chunks}]
+public void create_chunks(String file_path, int k,
+	String output_directory) throws IOException{
+	
+int total_number_of_transactions =
+			get_number_transactions(file_path);
+int transactions_per_chunk = total_number_of_transactions/k;
+	
+/*
+	initialize all counters, file_writers,..., see Appendix 5.3
+*/
+
+while ((transaction = file_reader.readLine())!=null){
+	transactions_written_to_chunk++;
+	total_line_counter++;
+	chunk_writer.println(transaction);
+			
+	if (transactions_written_to_chunk == 
+			transactions_per_chunk){
+			
+		chunk_writer.close();
+		chunk_counter++;
+		output_chunk = 
+				get_filename_for_next_chunk(chunk_counter);			
+		if (total_line_counter!=total_number_of_transactions)
+		{
+			chunk_writer = get_chunk_writer(output_directory,
+							 output_chunk);
+		}
+		transactions_written_to_chunk = 0;
+	}
+		
+}
+chunk_writer.close();
+file_reader.close();	
+}
+\end{lstlisting}
+
+The above code writes the data chunks to a local directory from which they are copied to the hadoop machine by the subscript
+\begin{center}
+\textit{copy\_chunks\_to\_hadoop.sh path\_from path\_to}
+\end{center} 
+where the path names \textit{path\_from} and \textit{path\_to} are generated by the calling parent script
+\textit{find\_frequent\_itemsets.sh}. Before executing the two MapReduce passes it is necessary to set the lower threshold for the mappers in the first pass and the total threshold for the reducers in the second pass. This is done by the two subscripts
+\begin{center}
+set\_chunk\_threshold.sh p\\
+set\_total\_threshold.sh s
+\end{center}
+which set the vaules $p$ and $s$ in configuration files on the hadoop site, where they are readable by the mapper and reducer classes (see \ref{first pass details} and \ref{second pass details}).
 \subsection{The First MapReduce Pass}\label{first pass details}
+After the data chunks are copied to the hadoop machine and the parameters for the thresholds are set the parent script \textit{find\_frequent\_itemsets.sh} executes the first run of MapReduce. The first run of mappers each process a data chunk and find frequent itemsets using A-Priori. This section does not examine the implemented A-Priori algorithm as it would exceed the scope of this report. Well documented code for the A-Priori function is listed in Appendix \ref{java}. Also the actual code for the mappers and reducers is very similar to the pseudocode given in \ref{first map task}, \ref{second map task} and thus not examined here (see Appendix \ref{java} for well documented code of the mappers and reducers). On the other hand this section covers technical details about the use of the hadoop framework. The two aspects that appeared challenging to implement the Mapper Task in hadoop were:
+\begin{itemize}
+\item setting the threshold parameter for the data chunks in the Mapper class of the hadoop job. Because of the distributed architecture of the hadoop framework the threshold parameter can not simply be set as a static variable. Passing the threshold parameter to the mapper functions is explained in \ref{set parameter}. 
+\item for our application of the hadoop framework it was required that each mapper processes the complete content of a data chunk. This is not the standard use of hadoop. In the given \textit{WordCount.java} for example each mapper only processes one line of a file at a time. How to configure hadoop to process complete data chunks in each mapper is explained in \ref{complete content}.
+\end{itemize}
+
+\subsubsection{Getting the threshold parameter}\label{set parameter}
+As mentioned in \ref{preprocessing} the threshold parameters for the mappers are written to configuration files on the hadoop site. The hadoop class \textit{Mapper} from which the implemented Mapper class inherits contains a \textit{setup} method which was utilized to read the parameter from the configuration file. By default the \textit{setup} method is called at the beginning of a Mapper (Reducer) Task and is capable of setting the parameter as a class variable and passing it to each run of the \textit{map} (\textit{reduce}) method. Assuming that the threshold parameter for a data chunk is written to the file \textit{config/threshold\_chunk.txt} on the hadoop machine in the format \textit{threshold:p} it can be obtained as listed in Listing \ref{lst:setting parameter}.
+\begin{lstlisting}[caption={setting the threshold parameter},captionpos=b,label={lst:setting parameter}]
+public static class Mapper extends
+			Mapper<Object, BytesWritable, Text, IntWritable> {
+			
+private int threshold;
+public void setup(Context context) throws IOException {
+	Path path = context.getWorkingDirectory();
+	String path_as_string= path.toString();
+	String config_file_path = 
+		path_as_string.concat("/config/threshold_chunk.txt");
+	Path configFilePath = new Path(config_file_path);
+	FileSystem fs = FileSystem.get(context.getConfiguration());
+	FSDataInputStream in = fs.open(configFilePath);
+	String line;
+	String[] temp = new String[2];
+	String thresholdString = null;
+	while ((line = in.readLine()) != null) {
+		temp = line.split(":");
+		thresholdString = temp[1];
+	}
+	in.close();
+	this.threshold = Integer.parseInt(thresholdString);
+}
+/*
+actual code for the map function goes here (see Appendix)
+*/
+}
+\end{lstlisting}
+\subsubsection{Passing complete file content to mappers}\label{complete content}
+The manner in which hadoop passes the content of an input path to the individual mapper functions can be configured by creating a class which inherits from the hadoop class \textit{FileInputFormat} and setting it as the \textit{InputFormatClass} of the hadoop job. Listing \ref{lst:passing complete} shows the implemented Format Class.
+\begin{lstlisting}[caption={InputFormatClass to pass complete data chunk content to mappers},captionpos=b,label={lst:passing complete}]
+public class WholeFileInputFormat 
+		extends FileInputFormat<NullWritable, BytesWritable>{	
+@Override
+protected boolean isSplitable(JobContext context, 
+							Path filename) {        
+return false;
+}
+@Override
+public RecordReader<NullWritable, BytesWritable>
+		createRecordReader(InputSplit split, 
+					TaskAttemptContext context)
+ 						 	throws IOException {   	
+return new WholeFileRecordReader();       
+}   
+}
+\end{lstlisting}
+The two methods that are overwritten from the parent class \textit{FileInputFormat} are \textit{isSplitable} and \textit{createRecordReader}. \textit{isSplitable} just returns false which assures that a data chunk is not split further and handed to separate mappers. \textit{createRecordReader} returns an instance of the class \textit{WholeFileRecordReader} which inherits from \textit{RecordReader}. The class \textit{WholeFileRecordReader} defines in the method \textit{nextKeyValue} how to break the file splits into key/value pairs for input to the mappers . In our case we want the file splits to be passed to the mappers as one. Therefore the method \textit{nextKeyValue} was overwritten to read complete file splits without breaking them further. Appendix \ref{java} lists the implemented class \textit{WholeFileRecordReader}.
 \subsection{The Second MapReduce Pass}\label{second pass details}
+
+The first MapReduce pass created a list of candidate itemsets. Each mapper in the second run processes one data chunk and counts how often each candidate occurs in it. Again the Java code for the second run of mappers and reducers is very similar to the pseudocode given in \ref{second map task} and \ref{second reduce task}. Well documented code for the second run of mappers and reducers can be found in Appendix \ref{java}. To not exceed the volume of this report this section rather focusses on the technical detail of how to pass the candidate itemsets to each mapper in the second pass which is explained in \ref{passing candidates}
+\subsubsection{Passing the candidate itemsets to mappers}\label{passing candidates}
+The output of the first pass of MapReduce is a text file which contains one candidate itemset per line. To be exact each line is in the format $[itemset, 1]$ as a result of the key-value format of the first MapReduce run. The value part of these pairs is not of interest and can be discarded. We are only interested in the itemset part of each line. For example the first couple of lines of the candidate itemset file could look like this:
+\begin{center}
+$[[23,42,17],1]$\\
+$[[1,9,109,22,3,16,],1]$\\
+$[[4],1]$
+\end{center}
+In order for the second set of mappers to read the candidate itemset file it was copied to a temporary directory by the parent script \textit{find\_frequent\_itemsets.sh} before the hadoop job of the second pass is started. The default name of this file is \textit{part-r-00000}. We utilized the inherited \textit{setup} method of the Mapper class to read the candidate itemsets. Listing \ref{lst:reading candidates} lists the main loop to obtain the candidates. The complete code is listed in the Appendix.
+\begin{lstlisting}[caption={reading the candidate itemset file},captionpos=b,label={lst:reading candidates}]
+public static class SecondPassMapper extends
+			Mapper<Object, BytesWritable, Text, IntWritable> {
+public ArrayList<Set<Integer>> candidateItemsets = 
+				new ArrayList<HashSet<Integer>>();
+public void setup(Context context) throws IOException {
+/*
+	initialize hadoop file reader for candidate itemset file
+			(see Apendix)
+*/
+while ((line = in.readLine()) != null) {
+	temp = line.split("\\t");
+	candidatesString = temp[0].substring(1, temp[0].length());
+	candidatesString = 
+		candidatesString.substring(0, candidatesString.length() - 1);
+	itemset = candidatesString.split(", ");
+	tempSet = new Set<Integer>();
+	for (String item : itemset) {
+		tempSet.add(Integer.parseInt(item));
+	}
+	candidateItemsets.add(tempSet);
+}
+in.close();
+}
+\end{lstlisting}
 \subsection{Output Postprocessing}\label{postprocessing}
+As a result of the second MapReduce pass we get a textfile which contains all frequent itemsets.
+The last step in the pipeline is to transform the Hadoop generated format into the desired output format. Therefore we need to read in the complete list of frequent itemsets and sort them subject to their counts. This was done by a simple run of bubble/quick/... sort.

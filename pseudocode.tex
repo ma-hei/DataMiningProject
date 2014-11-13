@@ -7,7 +7,7 @@ In the first pass each mapper in the Map Task is running the A-Priori Algorithm 
 
 The second run of mappers count for each candidate itemset how many of the baskets of a data chunk contain the candidate (see section \ref{second map task}). Therefore they need to store a count for each candidate. The data structure that is used to store the counts is the following:
 \begin{itemize}
-\item Each itemset is an instance of \textit{Set<Integer>}. Therefore we need a hashmap that maps from \textit{Set<Integer>} to counts (Integer). This gives us the data structure HashMap<Set<Integer>, Integer>.
+\item Each itemset is an instance of \textit{Set<Integer>}. Therefore we need a hashtable that maps from \textit{Set<Integer>} to counts (Integer). This gives us the data structure HashMap<Set<Integer>, Integer>.
 \end{itemize}
 \subsection{First Map Task}\label{first map task}
 In the first run of mapper functions each mapper is processing one of the data chunks. Each mappers task is to find all itemsets that occur at least in $ps$ of the baskets in the processed chunk. To get these itemsets, which are frequent for a data chunk the A-Priori Algorithm was utilized which is described in more detail in 1.1.1.
@@ -27,7 +27,7 @@ The pseudocode given in Algorithm 1 describes the function of the first set of m
 \end{algorithmic}
 \end{algorithm}
 \subsubsection{Finding frequent itemsets in first phase - the A-Priori Algorithm}\label{A-Priori}
-Each mapper in the first run of mappers finds all itemsets that are frequent (subject to the lower threshold $ps$) in the data chunk that is given as input by using the A-Priori Algorithm. For this step an own implementation of the A-Priori Algorithm was utilized. From a top level perspective the key function of the A-Priori algorithm is listed in Algorithm 2.
+Each mapper in the first run of mappers finds all itemsets that are frequent (subject to the lower threshold $ps$) in the data chunk that is given as input by using the A-Priori Algorithm. For this step an own implementation of the A-Priori Algorithm was utilized. From a top level perspective the key function of the A-Priori algorithm is listed in Algorithm 2. Appendix \ref{java} contains well documented Java code of a complete implementation.
 \begin{algorithm}
   \caption{A-Priori}\label{Apriori}
   \begin{algorithmic}[1]
@@ -39,7 +39,7 @@ Each mapper in the first run of mappers finds all itemsets that are frequent (su
       	\State {candidates = COMPUTE\_CANDIDATES\_FOR\_NEXT\_PASS(frequent\_itemsets)}
       \EndIf
       \While {candidates not empty AND frequent\_itemsets not empty}
-      \State {frequent\_itemsets = GET\_FREQUENT\_ITEMSETS(baskets, candidates, chunk\_threshold)}
+      \State {frequent\_itemsets = GET\_FREQUENT\_CANDIDATES(baskets, candidates, chunk\_threshold)}
       \If {frequent\_itemsets not empty}
       	\State {all\_frequent\_itemsets.ADD(frequent\_itemsets)}
       	\State {candidates = COMPUTE\_CANDIDATES\_FOR\_NEXT\_PASS(frequent\_itemsets)}
@@ -93,7 +93,7 @@ In the second run of mapper functions each mapper is again processing one of the
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Second Reduce Task}
+\subsection{Second Reduce Task}\label{second reduce task}
 Each reducer in the second run of reducers gets a key-value pair where the key is a candidate itemset and the value is a list of counts. The count list contains one value for each data chunk which is the number of baskets in that chunk that contains all the items of the candidate. The reducer sums up all the counts and gets the number of total baskets that contain the candidate. If this number is at least $s$ then the candidate is a frequent itemset for the whole file and the reducer produces it. Algorithm \ref{second reduce} describes the function of the reducers which run in the second Reduce Task.
 
 \begin{algorithm}
