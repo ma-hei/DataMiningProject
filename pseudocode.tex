@@ -10,7 +10,7 @@ The second run of mappers count for each candidate itemset how many of the baske
 \item Each itemset is an instance of \textit{Set<Integer>}. Therefore we need a hashtable that maps from \textit{Set<Integer>} to counts (Integer). This gives us the data structure HashMap<Set<Integer>, Integer>.
 \end{itemize}
 \subsection{First Map Task}\label{first map task}
-In the first run of mapper functions each mapper is processing one of the data chunks. Each mappers task is to find all itemsets that occur at least in $ps$ of the baskets in the processed chunk. To get these itemsets, which are frequent for a data chunk the A-Priori Algorithm was utilized which is described in more detail in 1.1.1.
+In the first run of mapper functions each mapper is processing one of the data chunks. If the fraction of the initial file that is given to the mapper is $k$ it is its task to find all itemsets that occur at least $ks$ times in the chunk ($s$ = support threshold for complete file). To get the candidate itemsets of a data chunk the A-Priori Algorithm was utilized which is described in more detail in \ref{A-Priori}.
 The pseudocode given in Algorithm 1 describes the function of the first set of mappers.
 \begin{algorithm}
   \caption{First Map}\label{First Map}
@@ -27,7 +27,7 @@ The pseudocode given in Algorithm 1 describes the function of the first set of m
 \end{algorithmic}
 \end{algorithm}
 \subsubsection{Finding frequent itemsets in first phase - the A-Priori Algorithm}\label{A-Priori}
-Each mapper in the first run of mappers finds all itemsets that are frequent (subject to the lower threshold $ps$) in the data chunk that is given as input by using the A-Priori Algorithm. For this step an own implementation of the A-Priori Algorithm was utilized. From a top level perspective the key function of the A-Priori algorithm is listed in Algorithm 2. Appendix \ref{java} contains well documented Java code of a complete implementation.
+Each mapper in the first run of mappers finds all itemsets that are frequent (subject to the lower threshold $ks$) in the input data chunk by using the A-Priori Algorithm. For this step an own implementation of the A-Priori Algorithm was utilized. From a top level perspective the key function of the A-Priori algorithm is listed in Algorithm 2. Appendix \ref{java} contains well documented Java code of a complete implementation.
 \begin{algorithm}
   \caption{A-Priori}\label{Apriori}
   \begin{algorithmic}[1]
@@ -61,7 +61,7 @@ The Reducer Task in the first pass merges together all the itemsets that were de
 \end{algorithm}
 \subsection{Second Map Task}\label{second map task}
 
-In the second run of mapper functions each mapper is again processing one of the data chunks. Before processing the data chunk the mapper reads in the list of candidate itemsets that was produced in the first MapReduce pass. The task of each mapper is to produce a key-value pair of the form $<candidate, count>$ for each $candidate$ where $count$ is the number of baskets in the data chunk that contains all items in the itemset $candidate$. Algorithm \ref{second map} gives pseudocode for the mappers that run in the second Map Task.
+In the second run of mapper functions each mapper is again processing one of the data chunks. Before processing the data chunk the mapper reads in the list of candidate itemsets that was produced in the first MapReduce pass. The task of each mapper is to produce a key-value pair of the form $<candidate, count>$ for each $candidate$ where $count$ is the number of baskets in the chunk that contains all items in the itemset $candidate$. Algorithm \ref{second map} gives pseudocode for the mappers that run in the second Map Task.
 \begin{algorithm}
   \caption{Second Map Task}\label{second map}
   \begin{algorithmic}[1]

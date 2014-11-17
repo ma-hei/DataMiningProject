@@ -8,6 +8,7 @@
 \usepackage{listings}
 \usepackage{color}
 \usepackage{adjustbox}
+\usepackage{verbatim}
 \newlength\someheight
 \setlength\someheight{3cm}
 \definecolor{javared}{rgb}{0.6,0,0} % for strings
@@ -50,7 +51,39 @@ showstringspaces=false}
 \section{Implementation Details}
 \input{implementation_details}
 \section{Evaluation}
-The pipeline was evaluated on the given test data file example.dat for x different choices for the number of data chunks and y different support thresholds. The total running time of each choice of parameters is listed in table t. Interestingly for the parameter choices x,y,z the mapper functions in the first pass failed due to timeouts.
+The pipeline was tested on the given SFU cluster (see project description) for the given test data file \textit{example.dat} for different choices of subfiles $k$ and support thresholds $s$. The following tables lists the calculation time for the two MapReduce passes as well as the number of found candidates and number of frequent itemsets:
+\begin{center}
+\centering
+\hspace*{-4.4cm}
+\scalebox{0.9}{%
+\begin{tabular}{l c | *{5}{c}}
+k              & s (in \%) & t first pass (in sec.) & candidates & t second pass (in sec.) &frequent itemsets& t total (in sec.)  \\
+\hline
+5 	& 1 & timeout &  &- & &-   \\
+10     & 1 & 420 & 454 &21 & 385 &441   \\
+25     & 1 & 296 & 616 &45 & 385 &341   \\
+50     & 1 & 290 & 930 &74 & 385 &364   \\
+100   & 1 & 370 & 2415 &145 & 385 &515   \\
+200   & 1 & timeout & &- & &- 
+\end{tabular}
+}
+\hspace*{-4.4cm}
+\end{center}
+For the choice of $5$ and $200$ file splits Hadoop could not run the first MapReduce successfully due to timeouts in the mappers. We assumed that for small chunks ($k=200$) the lower support threshold for the chunk becomes so low that the A-Priori runs in the mappers have to deal with too many candidates and thus the mappers time out. We assumed that the same applies for big chunks ($k=5$): Even though the lower threshold is larger than for smaller chunks, A-Priori has to deal with too many candidates when finding frequent itemsets. Therefore we ran the pipeline for $k=200, k=5$ again with a higher threshold $s$. For $s=2$ the two passes executed successfully:
+\begin{center}
+\centering
+\hspace*{-4.4cm}
+\scalebox{0.9}{%
+\begin{tabular}{l c | *{5}{c}}
+k              & s (in \%) & t first pass (in sec.) & candidates & t second pass (in sec.) &frequent itemsets& t total (in sec.)  \\
+\hline
+5 	& 2 & 61 & 170 & 21& 155 & 82   \\
+200   & 2 & 257 & 637 &327&  155&412
+\end{tabular}
+}
+\hspace*{-4.4cm}
+\end{center}
+
 \section{Appendix}
 \subsection{Shell Scripts}\label{scripts}
 \subsection{Java Modules}\label{java}
